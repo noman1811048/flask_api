@@ -15,7 +15,6 @@ class User(db.Model):
     password = db.Column(db.String(255), nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     role = db.Column(db.Enum(UserRole), nullable=False, default=UserRole.USER)
-    
     created_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     active = db.Column(db.Boolean, nullable=False, default=True)
@@ -39,14 +38,14 @@ class User(db.Model):
         self.reset_token = secrets.token_urlsafe(32)
         self.reset_token_expiration = datetime.utcnow() + timedelta(hours=1)
         db.session.commit()
-        return self.reset_token
 
     def verify_reset_token(self, token):
-        if self.reset_token != token or self.reset_token_expiration < datetime.utcnow():
+        if token != self.reset_token or self.reset_token_expiration < datetime.utcnow():
             return False
         return True
 
-    def clear_reset_token(self):
+    def reset_password(self, new_password):
+        self.set_password(new_password)
         self.reset_token = None
         self.reset_token_expiration = None
         db.session.commit()

@@ -29,11 +29,10 @@ class UserLoginSchema(Schema):
     username = fields.Str(required=True)
     password = fields.Str(required=True)
 
-class PasswordResetRequestSchema(Schema):
+class RequestPasswordResetSchema(Schema):
     email = fields.Email(required=True)
 
-class PasswordResetSchema(Schema):
-    token = fields.Str(required=True)
+class ResetPasswordSchema(Schema):
     new_password = fields.Str(required=True)
 
 def admin_required(fn):
@@ -46,22 +45,6 @@ def admin_required(fn):
             abort(403, message="Admin access required")
         return fn(*args, **kwargs)
     return wrapper
-
-def send_password_reset_email(user):
-    token = user.generate_reset_token()
-    reset_url = url_for('users.ResetPassword', token=token, _external=True)
-    msg = Message('Password Reset Request',
-                  sender=current_app.config['MAIL_USERNAME'],
-                  recipients=[user.email])
-    msg.body = f'''To reset your password, visit the following link:
-
-{reset_url}
-
-If you did not make this request then simply ignore this email and no changes will be made.
-
-This link is valid for 1 hour.
-'''
-    mail.send(msg)
 
 @user_blp.route('/register')
 class UserRegister(MethodView):
@@ -81,19 +64,19 @@ class UserRegister(MethodView):
             return user, 201
         except Exception as e:
             db.session.rollback()
-            abort(500, message=f"An error occurred while registering the user: {str(e)}")
+            logging.error(f"Error registering user: {str(e)}")
+            abort(500, message="An error occurred while registering the user")
 
 @user_blp.route('/login')
 class UserLogin(MethodView):
     @user_blp.arguments(UserLoginSchema)
     def post(self, login_data):
         user = User.query.filter_by(username=login_data['username']).first()
-        if user and user.active and bcrypt.check_password_hash(user.password, login_data['password']):
+        if user and user.active and user.check_password(login_data['password']):
             access_token = create_access_token(identity=user.id)
             return {"access_token": access_token}, 200
-        abort(401, message="Invalid credentials or inactive account.")
+        abort(401, message="Invalid credentials or inactive account")
 
-        
 @user_blp.route('/profile')
 class UserProfile(MethodView):
     @jwt_required()
@@ -113,37 +96,110 @@ class UserProfile(MethodView):
         user = User.query.get_or_404(user_id)
         for key, value in user_data.items():
             setattr(user, key, value)
-        db.session.commit()
-        return user
-    
-@user_blp.route('/forgot-password')
-class ForgotPassword(MethodView):
-    @user_blp.arguments(PasswordResetRequestSchema)
-    def post(self, reset_data):
-        user = User.query.filter_by(email=reset_data['email']).first()
-        if user:
-            try:
-                send_password_reset_email(user)
-                return {"message": "If an account with that email exists, a password reset link has been sent."}, 200
-            except Exception as e:
-                logging.error(f"Error in forgot password process: {str(e)}")
-                return {"message": "An error occurred while processing your request. Please try again later."}, 500
-        else:
-            logging.info(f"Password reset requested for non-existent email: {reset_data['email']}")
-        return {"message": "If an account with that email exists, a password reset link has been sent."}, 200
+        try:
+            db.session.commit()
+            return user
+        except Exception as e:
+            db.session.rollback()
+            logging.error(f"Error updating user profile: {str(e)}")
+            abort(500, message="An error occurred while updating the user profile")
+
+import traceback
+
+@user_blp.route('/request-password-reset')
+class RequestPasswordReset(MethodView):
+    @user_blp.arguments(RequestPasswordResetSchema)
+    def post(self, request_data):
+        try:
+            current_app.logger.info("Received password reset request")
+            email = request_data.get('email')
+            if not email:
+                abort(400, message="Email is required")
+
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                abort(404, message="User not found")
+
+            current_app.logger.info(f"User found: {user.email}")
+            user.generate_reset_token()
+
+            reset_url = url_for('users.ResetPassword', token=user.reset_token, _external=True)
+            current_app.logger.info(f"Reset URL generated: {reset_url}")
+
+            msg = Message('Password Reset Request',
+                          sender=current_app.config['MAIL_DEFAULT_SENDER'],
+                          recipients=[user.email])
+            msg.body = f'To reset your password, visit the following link: {reset_url}'
+
+            current_app.logger.info(f"Attempting to send email to {user.email}")
+            mail.send(msg)
+            current_app.logger.info(f"Email sent successfully to {user.email}")
+
+            return {"message": "Password reset instructions sent to email"}, 200
+        except Exception as e:
+            current_app.logger.error(f"Error in password reset request: {str(e)}")
+            current_app.logger.error(traceback.format_exc())
+            abort(500, message="An error occurred while processing your request")
+    @user_blp.arguments(RequestPasswordResetSchema)
+    def post(self, request_data):
+        try:
+            user = User.query.filter_by(email=request_data['email']).first()
+            if not user:
+                abort(404, message="User not found")
+            
+            user.generate_reset_token()
+            
+            reset_url = url_for('users.ResetPassword', token=user.reset_token, _external=True)
+            
+            msg = Message('Password Reset Request',
+                          sender=current_app.config['MAIL_DEFAULT_SENDER'],
+                          recipients=[user.email])
+            msg.body = f'To reset your password, visit the following link: {reset_url}'
+            
+            current_app.logger.info(f"Attempting to send email to {user.email}")
+            mail.send(msg)
+            current_app.logger.info(f"Email sent successfully to {user.email}")
+            
+            return {"message": "Password reset instructions sent to email"}, 200
+        except Exception as e:
+            current_app.logger.error(f"Error in password reset request: {str(e)}")
+            current_app.logger.error(traceback.format_exc())
+            abort(500, message="An error occurred while processing your request")
+    @user_blp.arguments(RequestPasswordResetSchema)
+    def post(self, request_data):
+        user = User.query.filter_by(email=request_data['email']).first()
+        if not user:
+            abort(404, message="User not found")
+        
+        try:
+            user.generate_reset_token()
+            reset_url = url_for('users.ResetPassword', token=user.reset_token, _external=True)
+            
+            msg = Message('Password Reset Request',
+                          sender=current_app.config['MAIL_DEFAULT_SENDER'],
+                          recipients=[user.email])
+            msg.body = f'To reset your password, visit the following link: {reset_url}'
+            mail.send(msg)
+            
+            return {"message": "Password reset instructions sent to email"}, 200
+        except Exception as e:
+            logging.error(f"Error sending password reset email: {str(e)}")
+            abort(500, message="An error occurred while processing your request")
 
 @user_blp.route('/reset-password/<token>')
 class ResetPassword(MethodView):
-    @user_blp.arguments(PasswordResetSchema)
+    @user_blp.arguments(ResetPasswordSchema)
     def post(self, reset_data, token):
         user = User.query.filter_by(reset_token=token).first()
-        if user and user.verify_reset_token(token):
-            user.set_password(reset_data['new_password'])
-            user.clear_reset_token()
-            db.session.commit()
-            return {"message": "Password has been reset successfully."}, 200
-        abort(400, message="Invalid or expired token.")
-
+        if not user or not user.verify_reset_token(token):
+            abort(400, message="Invalid or expired token")
+        
+        try:
+            user.reset_password(reset_data['new_password'])
+            return {"message": "Password has been reset successfully"}, 200
+        except Exception as e:
+            logging.error(f"Error resetting password: {str(e)}")
+            abort(500, message="An error occurred while resetting the password")
 @user_blp.route('/')
 class UserList(MethodView):
     @admin_required
