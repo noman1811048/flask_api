@@ -94,6 +94,7 @@ class Config:
     MAIL_USE_TLS = True
     MAIL_USERNAME = 'your_gmail'
     MAIL_PASSWORD = 'your_mail_app password'
+    MAIL_DEFAULT_SENDER = os.environ.get('MAIL_DEFAULT_SENDER') or 'your_gamil'
 ```
 
 ### Running the Application
