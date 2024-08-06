@@ -170,7 +170,8 @@ Any user can register but initial role is "USER".
 
 **POST** /user/request-password-reset
 
-First, go to your email and find a link that looks like this: http://127.0.0.1:5000/user/reset-password/3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s. Then, copy the last part of the URL (e.g., 3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s) and paste it into this endpoint: /user/reset-password/3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s.
+To reset your password, check your email for a message from us with a link like `http://127.0.0.1:5000/user/reset-password/3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s`. Copy the last part of the URL after the final slash. For example, in the URL `http://127.0.0.1:5000/user/reset-password/3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s`, the token is `3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s`. Paste this token into the following endpoint: `/user/reset-password/{token}`. Using the example token, the complete URL will be `/user/reset-password/3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s`. Visit this URL in your browser to proceed with resetting your password.
+
 
 **Request Body:**
 
