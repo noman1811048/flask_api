@@ -9,6 +9,7 @@ from functools import wraps
 from flask import current_app, url_for
 from flask_mail import Message
 from app import mail
+import traceback
 
 user_blp = Blueprint(
     'users', 'users', url_prefix='/user',
@@ -104,10 +105,52 @@ class UserProfile(MethodView):
             logging.error(f"Error updating user profile: {str(e)}")
             abort(500, message="An error occurred while updating the user profile")
 
-import traceback
-
 @user_blp.route('/request-password-reset')
 class RequestPasswordReset(MethodView):
+    @user_blp.arguments(RequestPasswordResetSchema)
+    def post(self, request_data):
+        try:
+            current_app.logger.info("Received password reset request")
+            email = request_data.get('email')
+            if not email:
+                abort(400, message="Email is required")
+            
+            user = User.query.filter_by(email=email).first()
+            if not user:
+                abort(404, message="User not found")
+            
+            current_app.logger.info(f"User found: {user.email}")
+            user.generate_reset_token()
+            
+            # Debug: Print the reset token
+            current_app.logger.debug(f"Generated reset token: {user.reset_token}")
+            
+            # Ensure we're using only the token
+            token = user.reset_token.split('/')[-1] if '/' in user.reset_token else user.reset_token
+            
+            current_app.logger.info(f"Using token: {token}")
+            
+            msg = Message('Password Reset Request',
+                          sender=current_app.config['MAIL_DEFAULT_SENDER'],
+                          recipients=[user.email])
+            
+            # Directly set the email body with only the token
+            msg.body = f'To reset your password, use the following token: {token}'
+            
+            # Debug: Print the email body
+            current_app.logger.debug(f"Email body: {msg.body}")
+            
+            current_app.logger.info(f"Attempting to send email to {user.email}")
+            mail.send(msg)
+            current_app.logger.info(f"Email sent successfully to {user.email}")
+            
+            return {"message": "Password reset instructions sent to email"}, 200
+        except Exception as e:
+            current_app.logger.error(f"Error in password reset request: {str(e)}")
+            current_app.logger.error(traceback.format_exc())
+            abort(500, message="An error occurred while processing your request")
+
+
     @user_blp.arguments(RequestPasswordResetSchema)
     def post(self, request_data):
         try:
@@ -200,6 +243,7 @@ class ResetPassword(MethodView):
         except Exception as e:
             logging.error(f"Error resetting password: {str(e)}")
             abort(500, message="An error occurred while resetting the password")
+
 @user_blp.route('/')
 class UserList(MethodView):
     @admin_required
@@ -212,16 +256,6 @@ class UserList(MethodView):
 @user_blp.route('/<int:user_id>')
 class UserResource(MethodView):
     @jwt_required()
-    @user_blp.response(200, UserSchema(exclude=["password"]))
-    @user_blp.doc(security=[{"bearerAuth": []}])
-    def get(self, user_id):
-        current_user_id = get_jwt_identity()
-        current_user = User.query.get(current_user_id)
-        if current_user.role == UserRole.ADMIN or current_user_id == user_id:
-            user = User.query.get_or_404(user_id)
-            return user
-        abort(403, message="Access denied")
-
     @admin_required
     @user_blp.arguments(UserSchema(partial=True, exclude=["password"]))
     @user_blp.response(200, UserSchema(exclude=["password"]))
