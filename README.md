@@ -169,6 +169,7 @@ Any user can register but initial role is "USER".
 ### Forget Password
 
 **POST** /user/request-password-reset
+
 First, go to your email and find a link that looks like this: http://127.0.0.1:5000/user/reset-password/3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s. Then, copy the last part of the URL (e.g., 3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s) and paste it into this endpoint: /user/reset-password/3XvseRjDpxWINYhh0w0Mss8-8m4nrqYPZwFp-rCAX4s.
 
 **Request Body:**
