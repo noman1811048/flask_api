@@ -149,8 +149,7 @@ class RequestPasswordReset(MethodView):
             current_app.logger.error(f"Error in password reset request: {str(e)}")
             current_app.logger.error(traceback.format_exc())
             abort(500, message="An error occurred while processing your request")
-
-
+            
     @user_blp.arguments(RequestPasswordResetSchema)
     def post(self, request_data):
         try:
@@ -183,6 +182,7 @@ class RequestPasswordReset(MethodView):
             current_app.logger.error(f"Error in password reset request: {str(e)}")
             current_app.logger.error(traceback.format_exc())
             abort(500, message="An error occurred while processing your request")
+            
     @user_blp.arguments(RequestPasswordResetSchema)
     def post(self, request_data):
         try:
@@ -208,6 +208,7 @@ class RequestPasswordReset(MethodView):
             current_app.logger.error(f"Error in password reset request: {str(e)}")
             current_app.logger.error(traceback.format_exc())
             abort(500, message="An error occurred while processing your request")
+            
     @user_blp.arguments(RequestPasswordResetSchema)
     def post(self, request_data):
         user = User.query.filter_by(email=request_data['email']).first()
